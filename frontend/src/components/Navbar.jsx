@@ -1,8 +1,9 @@
+// src/components/Navbar.js (Updated)
 import React, { useState, useEffect } from 'react';
 import { Link, useLocation } from 'react-router-dom';
-import { FiUser, FiSearch } from 'react-icons/fi';
+import { FiUser, FiSearch, FiLogOut } from 'react-icons/fi';
+import { useAuth } from '../context/AuthContext'; // Import the hook
 import logo from '../assets/voices.png';
-
 
 import {
   FaUsers,
@@ -19,6 +20,7 @@ const Navbar = () => {
   const [scrolled, setScrolled] = useState(false);
   const [openDropdown, setOpenDropdown] = useState(null);
   const location = useLocation();
+  const { currentUser, logout } = useAuth(); // Get auth state - CHANGED from isAuthenticated to currentUser
 
   const toggleMenu = () => {
     setIsOpen(!isOpen);
@@ -27,6 +29,12 @@ const Navbar = () => {
 
   const toggleDropdown = (name) => {
     setOpenDropdown((prev) => (prev === name ? null : name));
+  };
+
+  const handleLogout = () => {
+    logout();
+    setOpenDropdown(null);
+    setIsOpen(false);
   };
 
   useEffect(() => {
@@ -109,10 +117,10 @@ const Navbar = () => {
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
         <div className="flex justify-between items-center">
           <Link to="/" className="flex items-center">
- <img src={logo} alt="SYV Logo" className="h-10 w-auto" />
-
-  <span className="ml-3 text-xl font-bold text-gray-800">Sauti Ya Vijana</span>
-</Link>
+            <img src={logo} alt="SYV Logo" className="h-10 w-auto" />
+            <span className="ml-3 text-xl font-bold text-gray-800">Sauti Ya Vijana</span>
+          </Link>
+          
           <div className="hidden md:flex items-center space-x-2 ml-10">
             <div className="relative">
               <input
@@ -166,10 +174,58 @@ const Navbar = () => {
                 )}
               </div>
             ))}
-            <Link to="/login" className="flex items-center gap-1 text-gray-700 hover:text-green-600">
-              <FiUser className="w-5 h-5" />
-              Login
-            </Link>
+            
+            {/* AUTHENTICATION LINKS - UPDATED */}
+            {currentUser ? ( // CHANGED from isAuthenticated to currentUser
+              <div className="relative dropdown-parent">
+                <button
+                  onClick={() => toggleDropdown('profile')}
+                  className="flex items-center gap-1 text-gray-700 hover:text-green-600"
+                >
+                  <FiUser className="w-5 h-5" />
+                  {currentUser?.firstName || 'My Account'} {/* CHANGED from currentUser.name to currentUser.firstName */}
+                  <svg
+                    className={`w-4 h-4 ml-1 transition-transform duration-300 ${
+                      openDropdown === 'profile' ? 'rotate-180' : ''
+                    }`}
+                    fill="none"
+                    stroke="currentColor"
+                    strokeWidth="2"
+                    viewBox="0 0 24 24"
+                  >
+                    <path strokeLinecap="round" strokeLinejoin="round" d="M19 9l-7 7-7-7" />
+                  </svg>
+                </button>
+                {openDropdown === 'profile' && (
+                  <div className="absolute z-50 right-0 mt-2 w-48 bg-white border border-gray-100 rounded-md shadow-lg">
+                    <Link
+                      to="/profile"
+                      onClick={() => setOpenDropdown(null)}
+                      className="flex items-center gap-2 px-4 py-2 text-base font-semibold text-gray-700 hover:bg-green-50 hover:text-green-600"
+                    >
+                      <FiUser className="w-4 h-4" />
+                      My Profile
+                    </Link>
+                    <button
+                      onClick={handleLogout}
+                      className="flex items-center gap-2 w-full text-left px-4 py-2 text-base font-semibold text-red-600 hover:bg-red-50"
+                    >
+                      <FiLogOut className="w-4 h-4" />
+                      Logout
+                    </button>
+                  </div>
+                )}
+              </div>
+            ) : (
+              <div className="flex items-center gap-4">
+                <Link to="/login" className="text-gray-700 hover:text-green-600">
+                  Login
+                </Link>
+                <Link to="/register" className="text-gray-700 hover:text-green-600">
+                  Register
+                </Link>
+              </div>
+            )}
           </div>
 
           {/* Mobile Button */}
@@ -235,10 +291,46 @@ const Navbar = () => {
               )}
             </div>
           ))}
-          <Link to="/login" className="flex items-center gap-2 text-gray-700 mt-2 hover:text-green-600">
-            <FiUser className="w-5 h-5" />
-            Login
-          </Link>
+          
+          {/* MOBILE AUTHENTICATION LINKS - UPDATED */}
+          {currentUser ? ( // CHANGED from isAuthenticated to currentUser
+            <>
+              <Link
+                to="/profile"
+                onClick={() => setIsOpen(false)}
+                className="flex items-center gap-2 px-3 py-2 rounded-md text-base font-medium text-gray-700 hover:bg-gray-100 hover:text-green-600"
+              >
+                <FiUser className="w-5 h-5" />
+                My Profile
+              </Link>
+              <button
+                onClick={handleLogout}
+                className="flex items-center gap-2 w-full text-left px-3 py-2 rounded-md text-base font-medium text-red-600 hover:bg-red-50"
+              >
+                <FiLogOut className="w-5 h-5" />
+                Logout
+              </button>
+            </>
+          ) : (
+            <>
+              <Link
+                to="/login"
+                onClick={() => setIsOpen(false)}
+                className="flex items-center gap-2 px-3 py-2 rounded-md text-base font-medium text-gray-700 hover:bg-gray-100 hover:text-green-600"
+              >
+                <FiUser className="w-5 h-5" />
+                Login
+              </Link>
+              <Link
+                to="/register"
+                onClick={() => setIsOpen(false)}
+                className="flex items-center gap-2 px-3 py-2 rounded-md text-base font-medium text-gray-700 hover:bg-gray-100 hover:text-green-600"
+              >
+                <FiUser className="w-5 h-5" />
+                Register
+              </Link>
+            </>
+          )}
         </div>
       </div>
     </nav>
