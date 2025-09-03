@@ -41,7 +41,7 @@ const Login = () => {
             if (response.ok) {
                 // Save user info and JWT
                 login(data.user, data.access_token);
-                navigate('/users');  // Redirect to /users after login
+                navigate('/YouthAgenda/voices');  // Redirect to /users after login
             } else {
                 setError(data.message || 'Login failed. Please check your credentials.');
             }
