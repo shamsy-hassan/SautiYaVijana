@@ -1,31 +1,43 @@
-
-import os
+# app/__init__.py
 from flask import Flask
-from .extensions import db, migrate, jwt, cors
-from .main.routes import main_bp
-from .auth.routes import auth_bp
+from flask_sqlalchemy import SQLAlchemy
+from flask_migrate import Migrate
+from flask_jwt_extended import JWTManager
+from flask_cors import CORS
+
+# Initialize extensions
+db = SQLAlchemy()
+migrate = Migrate()
+jwt = JWTManager()
 
 def create_app():
     app = Flask(__name__)
 
-    # ----- Config -----
-    # Prefer DATABASE_URL from env, else fallback to youth.db in project root
-    database_url = os.getenv("DATABASE_URL", "sqlite:///instance/youth.db")
-    app.config["SQLALCHEMY_DATABASE_URI"] = database_url
+    # Database config
+    app.config["SQLALCHEMY_DATABASE_URI"] = "sqlite:///youth.db"
     app.config["SQLALCHEMY_TRACK_MODIFICATIONS"] = False
-    app.config["SECRET_KEY"] = os.getenv("SECRET_KEY", "dev-secret-change-me")
-    app.config["JWT_SECRET_KEY"] = os.getenv("JWT_SECRET_KEY", "dev-jwt-secret-change-me")
 
-    # ----- Extensions -----
+    # JWT config
+    app.config["JWT_SECRET_KEY"] = "super-secret-key"  # change for production
+    app.config["JWT_TOKEN_LOCATION"] = ["headers"]
+    app.config["JWT_HEADER_NAME"] = "Authorization"
+    app.config["JWT_HEADER_TYPE"] = "Bearer"
+
+    # Enable CORS for frontend
+    CORS(app, resources={r"/*": {"origins": "http://localhost:5173"}})
+
+    # Initialize extensions
     db.init_app(app)
     migrate.init_app(app, db)
     jwt.init_app(app)
 
-    # CORS (limit to your Vite dev server)
-    cors.init_app(app, resources={r"/*": {"origins": os.getenv("CORS_ORIGINS", "http://localhost:5173").split(",")}}, supports_credentials=True)
+    # Import and register blueprints (import here to avoid circular import)
+    from app.routes.auth import auth_bp
+    from app.routes.main import main_bp
+    from app.routes.issues import issues_bp
 
-    # ----- Blueprints -----
-    app.register_blueprint(main_bp)
     app.register_blueprint(auth_bp, url_prefix="/auth")
+    app.register_blueprint(main_bp)
+    app.register_blueprint(issues_bp)
 
     return app

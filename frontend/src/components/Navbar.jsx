@@ -1,8 +1,8 @@
-// src/components/Navbar.js (Updated)
+// src/components/Navbar.js
 import React, { useState, useEffect } from 'react';
 import { Link, useLocation } from 'react-router-dom';
 import { FiUser, FiSearch, FiLogOut } from 'react-icons/fi';
-import { useAuth } from '../context/AuthContext'; // Import the hook
+import { useAuth } from '../context/AuthContext';
 import logo from '../assets/voices.png';
 
 import {
@@ -20,7 +20,7 @@ const Navbar = () => {
   const [scrolled, setScrolled] = useState(false);
   const [openDropdown, setOpenDropdown] = useState(null);
   const location = useLocation();
-  const { currentUser, logout } = useAuth(); // Get auth state - CHANGED from isAuthenticated to currentUser
+  const { user, logout, loading } = useAuth();
 
   const toggleMenu = () => {
     setIsOpen(!isOpen);
@@ -72,11 +72,11 @@ const Navbar = () => {
     },
     {
       name: 'YouthAgenda',
-      path: '/YouthAgenda',
+      path: '/youthagenda',
       dropdown: [
-        { label: 'Youth Voices', path: '/YouthAgenda/voices', icon: <FaComments /> },
-        { label: 'Civic Rights', path: '/YouthAgenda/rights', icon: <FaHandshake /> },
-        { label: 'Local Challenges', path: '/YouthAgenda/challenges', icon: <FaBook /> },
+        { label: 'Youth Voices', path: '/youthagenda/voices', icon: <FaComments /> },
+        { label: 'Civic Rights', path: '/youthagenda/rights', icon: <FaHandshake /> },
+        { label: 'Local Challenges', path: '/youthagenda/challenges', icon: <FaBook /> },
       ],
     },
     {
@@ -107,6 +107,23 @@ const Navbar = () => {
       ],
     },
   ];
+
+  // Show loading state while authentication is being checked
+  if (loading) {
+    return (
+      <nav className="fixed top-0 w-full z-50 bg-white shadow-md border-b border-gray-100 py-2">
+        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+          <div className="flex justify-between items-center">
+            <Link to="/" className="flex items-center">
+              <img src={logo} alt="SYV Logo" className="h-10 w-auto" />
+              <span className="ml-3 text-xl font-bold text-gray-800">Sauti Ya Vijana</span>
+            </Link>
+            <div className="animate-pulse bg-gray-200 h-8 w-8 rounded-full"></div>
+          </div>
+        </div>
+      </nav>
+    );
+  }
 
   return (
     <nav
@@ -139,7 +156,7 @@ const Navbar = () => {
                 <button
                   onClick={() => toggleDropdown(link.name)}
                   className={`text-base font-medium transition-colors duration-300 hover:text-green-600 flex items-center ${
-                    location.pathname === link.path ? 'text-green-600 font-semibold' : 'text-gray-700'
+                    location.pathname.startsWith(link.path) ? 'text-green-600 font-semibold' : 'text-gray-700'
                   }`}
                 >
                   {link.name}
@@ -175,15 +192,15 @@ const Navbar = () => {
               </div>
             ))}
             
-            {/* AUTHENTICATION LINKS - UPDATED */}
-            {currentUser ? ( // CHANGED from isAuthenticated to currentUser
+            {/* AUTHENTICATION LINKS */}
+            {user ? (
               <div className="relative dropdown-parent">
                 <button
                   onClick={() => toggleDropdown('profile')}
                   className="flex items-center gap-1 text-gray-700 hover:text-green-600"
                 >
                   <FiUser className="w-5 h-5" />
-                  {currentUser?.firstName || 'My Account'} {/* CHANGED from currentUser.name to currentUser.firstName */}
+                  {user.firstName || 'My Account'}
                   <svg
                     className={`w-4 h-4 ml-1 transition-transform duration-300 ${
                       openDropdown === 'profile' ? 'rotate-180' : ''
@@ -218,10 +235,16 @@ const Navbar = () => {
               </div>
             ) : (
               <div className="flex items-center gap-4">
-                <Link to="/login" className="text-gray-700 hover:text-green-600">
+                <Link 
+                  to="/login" 
+                  className="text-gray-700 hover:text-green-600 transition-colors duration-300"
+                >
                   Login
                 </Link>
-                <Link to="/register" className="text-gray-700 hover:text-green-600">
+                <Link 
+                  to="/register" 
+                  className="bg-green-600 text-white px-4 py-2 rounded-lg hover:bg-green-700 transition-colors duration-300"
+                >
                   Register
                 </Link>
               </div>
@@ -229,7 +252,25 @@ const Navbar = () => {
           </div>
 
           {/* Mobile Button */}
-          <div className="md:hidden flex items-center">
+          <div className="md:hidden flex items-center gap-4">
+            {user ? (
+              <div className="flex items-center gap-2">
+                <span className="text-sm text-gray-700">Hi, {user.firstName}</span>
+                <button onClick={handleLogout} className="text-gray-700 hover:text-red-600">
+                  <FiLogOut className="w-5 h-5" />
+                </button>
+              </div>
+            ) : (
+              <div className="flex items-center gap-2">
+                <Link to="/login" className="text-gray-700 hover:text-green-600 text-sm">
+                  Login
+                </Link>
+                <span className="text-gray-400">|</span>
+                <Link to="/register" className="text-gray-700 hover:text-green-600 text-sm">
+                  Register
+                </Link>
+              </div>
+            )}
             <button onClick={toggleMenu} className="text-gray-700 hover:text-green-600 focus:outline-none">
               <svg className="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                 {isOpen ? (
@@ -292,8 +333,8 @@ const Navbar = () => {
             </div>
           ))}
           
-          {/* MOBILE AUTHENTICATION LINKS - UPDATED */}
-          {currentUser ? ( // CHANGED from isAuthenticated to currentUser
+          {/* MOBILE AUTHENTICATION LINKS */}
+          {user ? (
             <>
               <Link
                 to="/profile"

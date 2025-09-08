@@ -3,7 +3,9 @@ import React, { useState } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import { FiUser, FiLock, FiMail, FiPhone, FiMapPin, FiGlobe, FiCalendar, FiCheck } from 'react-icons/fi';
 import { FaUserCircle, FaIdCard, FaUsers, FaShieldAlt } from 'react-icons/fa';
+import { useAuth } from '../context/AuthContext'; // Optional if you want auto-login after register
 
+const API_BASE_URL = 'http://127.0.0.1:5000';
 const Register = () => {
   const [formData, setFormData] = useState({
     firstName: '',
@@ -21,6 +23,7 @@ const Register = () => {
   const [error, setError] = useState('');
   const [loading, setLoading] = useState(false);
   const navigate = useNavigate();
+  const { login } = useAuth(); // If you want to auto-login
 
   const ageGroups = [
     'Under 18',
@@ -33,70 +36,70 @@ const Register = () => {
   ];
 
   const handleChange = (e) => {
-    setFormData({
-      ...formData,
-      [e.target.name]: e.target.value
-    });
+    setFormData({ ...formData, [e.target.name]: e.target.value });
   };
-const handleSubmit = async (e) => {
-  e.preventDefault();
-  setLoading(true);
-  setError('');
 
-  if (formData.password !== formData.confirmPassword) {
-    setError('Passwords do not match');
-    setLoading(false);
-    return;
-  }
+  const handleSubmit = async (e) => {
+    e.preventDefault();
+    setLoading(true);
+    setError('');
 
-  if (formData.password.length < 6) {
-    setError('Password must be at least 6 characters');
-    setLoading(false);
-    return;
-  }
-
-  try {
-    const response = await fetch('http://127.0.0.1:5000/auth/register', {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-      },
-      body: JSON.stringify({
-        firstName: formData.firstName,
-        lastName: formData.lastName,
-        anonymousName: formData.anonymousName,
-        email: formData.email,
-        phone: formData.phone,
-        ageGroup: formData.ageGroup,
-        location: formData.location,
-        bio: formData.bio,
-        website: formData.website,
-        password: formData.password,
-        confirmPassword: formData.confirmPassword,
-      }),
-    });
-
-    const data = await response.json();
-
-    if (response.ok) {
-      navigate('/login', { 
-        state: { message: 'Registration successful! Please log in.' } 
-      });
-    } else {
-      setError(data.message || 'Registration failed. Please try again.');
+    if (formData.password !== formData.confirmPassword) {
+      setError('Passwords do not match');
+      setLoading(false);
+      return;
     }
-  } catch (err) {
-    setError('Network error. Please try again.');
-  } finally {
-    setLoading(false);
-  }
-};
 
+    if (formData.password.length < 6) {
+      setError('Password must be at least 6 characters');
+      setLoading(false);
+      return;
+    }
+
+    try {
+      const response = await fetch(`${API_BASE_URL}/auth/register`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          firstName: formData.firstName,
+          lastName: formData.lastName,
+          anonymousName: formData.anonymousName,
+          email: formData.email,
+          phone: formData.phone,
+          ageGroup: formData.ageGroup,
+          location: formData.location,
+          bio: formData.bio,
+          website: formData.website,
+          password: formData.password,
+        }),
+      });
+
+      const data = await response.json();
+
+      if (response.ok) {
+        // Optional: auto-login after registration
+        if (login && data.access_token) {
+          login(data.user, data.access_token);
+          navigate('/YouthAgenda/voices');
+        } else {
+          navigate('/login', {
+            state: { message: 'Registration successful! Please log in.' }
+          });
+        }
+      } else {
+        setError(data.message || 'Registration failed. Please try again.');
+      }
+    } catch {
+      setError('Network error. Please try again.');
+    } finally {
+      setLoading(false);
+    }
+  };
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-green-50 to-emerald-100 flex items-center justify-center px-4 py-8">
       <div className="max-w-4xl w-full bg-white rounded-2xl shadow-xl overflow-hidden">
-        {/* Header Section */}
+        {/* Header */}
         <div className="bg-gradient-to-r from-emerald-600 to-green-700 text-white p-8 text-center">
           <div className="w-20 h-20 rounded-full bg-white bg-opacity-20 border-4 border-white border-opacity-30 flex items-center justify-center mx-auto mb-4">
             <FaUserCircle className="text-4xl text-white" />
@@ -105,7 +108,7 @@ const handleSubmit = async (e) => {
           <p className="text-emerald-100">Create your account and start connecting with others</p>
         </div>
 
-        {/* Why Join Us Section */}
+        {/* Why Join Us */}
         <div className="bg-emerald-50 p-8 border-b border-emerald-200">
           <h2 className="text-xl font-semibold text-emerald-800 text-center mb-6">Why Join Us?</h2>
           <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
@@ -148,7 +151,7 @@ const handleSubmit = async (e) => {
           </div>
         </div>
 
-        {/* Form Section */}
+        {/* Form */}
         <div className="p-8">
           <div className="text-center mb-8">
             <h2 className="text-2xl font-bold text-gray-800">Create Your Account</h2>

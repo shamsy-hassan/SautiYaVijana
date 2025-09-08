@@ -45,17 +45,19 @@ import Volunteer       from './pages/contact/Volunteer';
 import SupportUs       from './pages/contact/SupportUs';
 import FAQs            from './pages/contact/FAQs';
 
+// API base URL from environment variables - VITE style
+const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || 'http://127.0.0.1:5000';
+
 function App() {
   // Backend connection test
   useEffect(() => {
-    if (process.env.NODE_ENV === 'development') {
-      fetch('http://127.0.0.1:5000/auth/test')
+    if (import.meta.env.MODE === 'development') {
+      fetch(`${API_BASE_URL}/auth/test`)
         .then(response => {
           if (!response.ok) throw new Error('Network response was not ok');
-          return response.json();
+          console.log("✅ Backend connection successful!");
         })
-        .then(data => console.log("Backend connection successful:", data))
-        .catch(error => console.error('Backend connection error:', error));
+        .catch(error => console.error('❌ Backend connection error:', error));
     }
   }, []);
 
@@ -81,8 +83,8 @@ function App() {
                 <Route path="/about" element={<About />} />
                 <Route path="/blog" element={<Blog />} />
                 <Route path="/contact" element={<Contact />} />
-                <Route path="/login" element={<Login />} />
-                <Route path="/register" element={<Register />} />
+                <Route path="/login" element={<Login apiUrl={`${API_BASE_URL}/auth/login`} />} />
+                <Route path="/register" element={<Register apiUrl={`${API_BASE_URL}/auth/register`} />} />
                 
                 {/* Protected Routes */}
                 <Route
@@ -99,7 +101,7 @@ function App() {
                   path="/youthagenda/voices"
                   element={
                     <ProtectedRoute>
-                      <Voices />
+                      <Voices apiUrl={`${API_BASE_URL}/voices`} />
                     </ProtectedRoute>
                   }
                 />
