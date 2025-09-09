@@ -4,10 +4,18 @@ import { Navigate } from "react-router-dom";
 import { useAuth } from "../context/AuthContext";
 
 const ProtectedRoute = ({ children }) => {
-  const { user, token } = useAuth();
+  const { user, loading } = useAuth();
 
-  if (!user || !token) {
-    // If no user or no token in context → redirect to login
+  // While auth is initializing, avoid redirecting — show a simple loader
+  if (loading) {
+    return (
+      <div className="h-screen flex items-center justify-center">
+        <div className="text-gray-600">Checking session…</div>
+      </div>
+    );
+  }
+
+  if (!user) {
     return <Navigate to="/login" replace />;
   }
 

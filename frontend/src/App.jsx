@@ -83,8 +83,8 @@ function App() {
                 <Route path="/about" element={<About />} />
                 <Route path="/blog" element={<Blog />} />
                 <Route path="/contact" element={<Contact />} />
-                <Route path="/login" element={<Login apiUrl={`${API_BASE_URL}/auth/login`} />} />
-                <Route path="/register" element={<Register apiUrl={`${API_BASE_URL}/auth/register`} />} />
+                <Route path="/login" element={<Login />} />
+                <Route path="/register" element={<Register />} />
                 
                 {/* Protected Routes */}
                 <Route

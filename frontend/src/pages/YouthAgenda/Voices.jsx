@@ -1,26 +1,10 @@
 // src/components/Voices.jsx
 import React, { useState, useEffect } from 'react';
 import { FaThumbsUp, FaRegThumbsUp, FaTrash, FaEdit, FaUser, FaSignInAlt, FaSignOutAlt, FaComment, FaRegComment, FaCheck, FaTimes, FaReply, FaSmile } from 'react-icons/fa';
-
 import { motion } from 'framer-motion';
 import EmojiPicker from "emoji-picker-react";
+
 const API_BASE_URL = 'http://localhost:5000';
-
-
-
-// Add this function to your Voices component
-const handleDeleteClick = async (id) => {
-  if (window.confirm('Are you sure you want to delete this issue?')) {
-    const success = await deleteIssue(id);
-    
-    if (success) {
-      setIssues(issues.filter(issue => issue.id !== id));
-    } else {
-      alert('Failed to delete issue');
-    }
-  }
-};
-// API endpoints (replace with your actual API URLs)
 
 const API_ENDPOINTS = {
   ISSUES: `${API_BASE_URL}/api/issues`,
@@ -29,6 +13,7 @@ const API_ENDPOINTS = {
   LOGIN: `${API_BASE_URL}/api/auth/login`,
   REGISTER: `${API_BASE_URL}/api/auth/register`
 };
+
 const Voices = () => {
   const [issues, setIssues] = useState([]);
   const [showForm, setShowForm] = useState(false);
@@ -48,39 +33,6 @@ const Voices = () => {
   const [commentText, setCommentText] = useState('');
   const [replyingTo, setReplyingTo] = useState(null);
   const [showEmojiPicker, setShowEmojiPicker] = useState(null);
-
-  // Load user and issues from API on initial render
-  useEffect(() => {
-    const fetchData = async () => {
-      try {
-        // Check if user is logged in
-        const token = localStorage.getItem('authToken');
-        if (token) {
-          const userResponse = await fetch(`${API_ENDPOINTS.USERS}/me`, {
-            headers: {
-              'Authorization': `Bearer ${token}`
-            }
-          });
-          
-          if (userResponse.ok) {
-            const userData = await userResponse.json();
-            setCurrentUser(userData);
-          }
-        }
-
-        // Fetch issues
-        const issuesResponse = await fetch(API_ENDPOINTS.ISSUES);
-        if (issuesResponse.ok) {
-          const issuesData = await issuesResponse.json();
-          setIssues(issuesData);
-        }
-      } catch (error) {
-        console.error('Error fetching data:', error);
-      }
-    };
-
-    fetchData();
-  }, []);
 
   // API call functions
   const createIssue = async (issueData) => {
@@ -129,7 +81,7 @@ const Voices = () => {
 
   const deleteIssue = async (id) => {
     try {
-      const token = localStorage.getItem('token');
+      const token = localStorage.getItem('authToken');
       const response = await fetch(`${API_ENDPOINTS.ISSUES}/${id}`, {
         method: 'DELETE',
         headers: {
@@ -230,10 +182,100 @@ const Voices = () => {
     }
   };
 
+  const addEmojiReaction = async (commentId, emoji) => {
+    try {
+      const token = localStorage.getItem('authToken');
+      const response = await fetch(`${API_ENDPOINTS.COMMENTS}/${commentId}/reactions`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${token}`
+        },
+        body: JSON.stringify({ emoji })
+      });
+      
+      if (response.ok) {
+        const updatedComment = await response.json();
+        
+        // Update the comment with the new reaction
+        setIssues(prevIssues => {
+          const updateComments = (comments) => {
+            return comments.map(comment => {
+              if (comment.id === commentId) {
+                return updatedComment;
+              } else if (comment.replies && comment.replies.length > 0) {
+                return {
+                  ...comment,
+                  replies: updateComments(comment.replies)
+                };
+              }
+              return comment;
+            });
+          };
+          
+          return prevIssues.map(issue => {
+            return {
+              ...issue,
+              comments: updateComments(issue.comments)
+            };
+          });
+        });
+      }
+    } catch (error) {
+      console.error('Error adding reaction:', error);
+    }
+  };
+
+  // Load user and issues from API on initial render
+  useEffect(() => {
+    const fetchData = async () => {
+      try {
+        // Check if user is logged in
+        const token = localStorage.getItem('authToken');
+        if (token) {
+          const userResponse = await fetch(`${API_ENDPOINTS.USERS}/me`, {
+            headers: {
+              'Authorization': `Bearer ${token}`
+            }
+          });
+          
+          if (userResponse.ok) {
+            const userData = await userResponse.json();
+            setCurrentUser(userData);
+          }
+        }
+
+        // Fetch issues
+        const issuesResponse = await fetch(API_ENDPOINTS.ISSUES);
+        if (issuesResponse.ok) {
+          const issuesData = await issuesResponse.json();
+          setIssues(issuesData);
+        }
+      } catch (error) {
+        console.error('Error fetching data:', error);
+      }
+    };
+
+    fetchData();
+  }, []);
+
   const handleLogout = () => {
     localStorage.removeItem('authToken');
     localStorage.removeItem('sautiUser');
     setCurrentUser(null);
+  };
+
+  // Delete issue handler
+  const handleDeleteClick = async (id) => {
+    if (window.confirm('Are you sure you want to delete this issue?')) {
+      const success = await deleteIssue(id);
+      
+      if (success) {
+        setIssues(issues.filter(issue => issue.id !== id));
+      } else {
+        alert('Failed to delete issue');
+      }
+    }
   };
 
   // Comment handlers
@@ -289,7 +331,7 @@ const Voices = () => {
               // Add as a top-level comment
               return {
                 ...issue,
-                comments: [...issue.comments, newComment]
+                comments: [...(issue.comments || []), newComment]
               };
             }
           }
@@ -309,52 +351,8 @@ const Voices = () => {
     setCommentText('');
   };
 
-  const handleEmojiClick = (commentId, emojiData) => {
+  const handleEmojiClick = (commentId) => {
     setShowEmojiPicker(showEmojiPicker === commentId ? null : commentId);
-  };
-
-  const addEmojiReaction = async (commentId, emoji) => {
-    try {
-      const token = localStorage.getItem('authToken');
-      const response = await fetch(`${API_ENDPOINTS.COMMENTS}/${commentId}/reactions`, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          'Authorization': `Bearer ${token}`
-        },
-        body: JSON.stringify({ emoji })
-      });
-      
-      if (response.ok) {
-        const updatedComment = await response.json();
-        
-        // Update the comment with the new reaction
-        setIssues(prevIssues => {
-          const updateComments = (comments) => {
-            return comments.map(comment => {
-              if (comment.id === commentId) {
-                return updatedComment;
-              } else if (comment.replies && comment.replies.length > 0) {
-                return {
-                  ...comment,
-                  replies: updateComments(comment.replies)
-                };
-              }
-              return comment;
-            });
-          };
-          
-          return prevIssues.map(issue => {
-            return {
-              ...issue,
-              comments: updateComments(issue.comments)
-            };
-          });
-        });
-      }
-    } catch (error) {
-      console.error('Error adding reaction:', error);
-    }
   };
 
   // Original handlers

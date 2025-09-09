@@ -1,47 +1,28 @@
 // src/context/AuthContext.jsx
-import React, { createContext, useContext, useState, useEffect } from "react";
+import React, { createContext, useContext, useState, useEffect, useCallback } from "react";
 
-// ✅ Use Vite environment variable with fallback
+// Vite env var (fallback to localhost)
 const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || "http://127.0.0.1:5000";
 
-const AuthContext = createContext();
-
-export const useAuth = () => {
-  const context = useContext(AuthContext);
-  if (!context) {
-    throw new Error("useAuth must be used within an AuthProvider");
-  }
-  return context;
-};
+export const AuthContext = createContext(null);
 
 export const AuthProvider = ({ children }) => {
   const [user, setUser] = useState(null);
-  const [token, setToken] = useState(localStorage.getItem("token") || null);
+  const [token, setToken] = useState(() => localStorage.getItem("token") || null);
   const [loading, setLoading] = useState(true);
+  const [profileImage, setProfileImage] = useState(null);
   const [authError, setAuthError] = useState(null);
 
-  // Run once on app load to restore session
-  useEffect(() => {
-    const initializeAuth = async () => {
-      const storedToken = localStorage.getItem("token");
+  // fetchProfile - stable (useCallback) so HMR sees a consistent export shape
+  const fetchProfile = useCallback(async (accessToken) => {
+    if (!accessToken) {
+      setUser(null);
+      setAuthError("No token");
+      return false;
+    }
 
-      if (storedToken && storedToken !== "null") {
-        setToken(storedToken);
-        await fetchProfile(storedToken);
-      }
-      setLoading(false);
-    };
-
-    initializeAuth();
-  }, []);
-
-  // 🔹 Fetch profile with token
-  const fetchProfile = async (accessToken) => {
     try {
-      console.log("Fetching profile with token:", accessToken);
-
       const cleanToken = accessToken.replace(/^["']|["']$/g, "").trim();
-
       const res = await fetch(`${API_BASE_URL}/auth/profile`, {
         method: "GET",
         headers: {
@@ -50,145 +31,129 @@ export const AuthProvider = ({ children }) => {
         },
       });
 
-      console.log("Response status:", res.status);
-
       if (!res.ok) {
-        const errorText = await res.text();
-        console.error("Server response:", errorText);
-        setAuthError("Session expired. Please log in again.");
-        return; // ❌ Don’t force logout, just mark error
+        const text = await res.text().catch(() => "");
+        console.warn("profile fetch not ok:", res.status, text);
+        setUser(null);
+        setAuthError(text || `HTTP ${res.status}`);
+        return false;
       }
 
       const data = await res.json();
       setUser(data);
-      setAuthError(null); // clear previous errors
-      console.log("✅ Profile fetched successfully:", data);
+      setProfileImage(data.profileImage || null); // Set profile image from user data
+      setAuthError(null);
+      return true;
     } catch (err) {
-      console.error("❌ Profile fetch error:", err.message);
-      setAuthError("Unable to fetch profile. Please try again.");
+      console.error("fetchProfile error:", err);
+      setUser(null);
+      setAuthError(err.message || "Network error");
+      return false;
     }
-  };
+  }, []);
 
-  // 🔹 Login
-  const login = async ({ email, password }) => {
-    try {
-      const res = await fetch(`${API_BASE_URL}/auth/login`, {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-          Accept: "application/json",
-        },
-        body: JSON.stringify({ email, password }),
-      });
-
-      const text = await res.text();
-      let data;
-
-      try {
-        data = JSON.parse(text);
-      } catch {
-        throw new Error(`Invalid JSON response: ${text}`);
+  // Initialize auth once on app load
+  useEffect(() => {
+    let mounted = true;
+    const init = async () => {
+      const stored = localStorage.getItem("token");
+      if (stored) {
+        setToken(stored);
+        await fetchProfile(stored);
       }
+      if (mounted) setLoading(false);
+    };
+    init();
+    return () => { mounted = false; };
+  }, [fetchProfile]);
 
-      if (!res.ok) {
-        throw new Error(
-          data.msg ||
-            data.error ||
-            data.message ||
-            `HTTP error! status: ${res.status}`
-        );
-      }
+  // login
+  const login = useCallback(async ({ email, password }) => {
+    const res = await fetch(`${API_BASE_URL}/auth/login`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ email, password }),
+    });
 
-      if (!data.access_token) {
-        throw new Error("No access token received in response");
-      }
+    const text = await res.text();
+    let data;
+    try { data = JSON.parse(text); } catch { throw new Error(`Invalid JSON: ${text}`); }
 
-      const cleanToken = data.access_token.replace(/^["']|["']$/g, "").trim();
+    if (!res.ok) throw new Error(data.msg || data.error || data.message || `HTTP ${res.status}`);
+    const t = data.access_token || data.token || data.accessToken;
+    if (!t) throw new Error("No access token received");
 
-      localStorage.setItem("token", cleanToken);
-      setToken(cleanToken);
+    localStorage.setItem("token", t);
+    setToken(t);
+    await fetchProfile(t);
+    return data;
+  }, [fetchProfile]);
 
-      await fetchProfile(cleanToken);
+  // register
+  const register = useCallback(async (payload) => {
+    const res = await fetch(`${API_BASE_URL}/auth/register`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(payload),
+    });
+    const text = await res.text();
+    let data;
+    try { data = JSON.parse(text); } catch { throw new Error(`Invalid JSON: ${text}`); }
 
-      return data;
-    } catch (err) {
-      console.error("❌ Login error:", err.message);
-      throw err;
-    }
-  };
+    if (!res.ok) throw new Error(data.msg || data.error || data.message || `HTTP ${res.status}`);
+    const t = data.access_token || data.token || data.accessToken;
+    if (!t) throw new Error("No access token received");
 
-  // 🔹 Register
-  const register = async (newUser) => {
-    try {
-      const res = await fetch(`${API_BASE_URL}/auth/register`, {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-          Accept: "application/json",
-        },
-        body: JSON.stringify(newUser),
-      });
+    localStorage.setItem("token", t);
+    setToken(t);
+    await fetchProfile(t);
+    return data;
+  }, [fetchProfile]);
 
-      const text = await res.text();
-      let data;
-
-      try {
-        data = JSON.parse(text);
-      } catch {
-        throw new Error(`Invalid JSON response: ${text}`);
-      }
-
-      if (!res.ok) {
-        throw new Error(
-          data.msg ||
-            data.error ||
-            data.message ||
-            `HTTP error! status: ${res.status}`
-        );
-      }
-
-      if (!data.access_token) {
-        throw new Error("No access token received in response");
-      }
-
-      const cleanToken = data.access_token.replace(/^["']|["']$/g, "").trim();
-
-      localStorage.setItem("token", cleanToken);
-      setToken(cleanToken);
-
-      await fetchProfile(cleanToken);
-
-      return data;
-    } catch (err) {
-      console.error("❌ Register error:", err.message);
-      throw err;
-    }
-  };
-
-  // 🔹 Logout
-  const logout = () => {
-    setUser(null);
-    setToken(null);
+  // logout
+  const logout = useCallback(() => {
     localStorage.removeItem("token");
+    setToken(null);
+    setUser(null);
+    setProfileImage(null);
     setAuthError(null);
-    console.log("✅ User logged out");
-  };
+  }, []);
+
+  // Update profile image in context - fixed to handle null user
+  const updateProfileImage = useCallback((imageUrl) => {
+    setProfileImage(imageUrl);
+    // Also update the user object if it exists
+    setUser(prevUser => {
+      if (prevUser) {
+        return { ...prevUser, profileImage: imageUrl };
+      }
+      return prevUser;
+    });
+  }, []);
 
   return (
-    <AuthContext.Provider
-      value={{
-        user,
-        token,
-        setUser,     // expose so Profile.jsx can call setUser
-        login,
-        register,
-        logout,
-        loading,
-        fetchProfile,
-        authError,   // expose error state
-      }}
-    >
+    <AuthContext.Provider value={{
+      user,
+      setUser,    // exposed so Profile can update global user immediately
+      token,
+      setToken,
+      loading,     // indicates auth initialization (use in ProtectedRoute)
+      authError,
+      fetchProfile,
+      login,
+      register,
+      logout,
+      profileImage,
+      updateProfileImage
+    }}>
       {children}
     </AuthContext.Provider>
   );
+};
+
+// put hook at bottom — stable export layout for Vite HMR
+export const useAuth = () => {
+  const ctx = useContext(AuthContext);
+  if (!ctx) throw new Error("useAuth must be used within an AuthProvider");
+  return ctx;
 };

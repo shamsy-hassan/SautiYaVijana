@@ -1,23 +1,33 @@
-import React, { useState, useEffect, useRef } from 'react';
-import { useAuth } from '../context/AuthContext';
-import { useNavigate, Link } from 'react-router-dom';
-import { motion } from 'framer-motion';
-import { FaUserCircle, FaCamera, FaTrash, FaEdit, FaSave, FaTimes } from 'react-icons/fa';
+// src/pages/Profile.jsx
+import React, { useState, useEffect, useRef } from "react";
+import { useAuth } from "../context/AuthContext";
+import { useNavigate, Link } from "react-router-dom";
+import { motion } from "framer-motion";
+import { FaUserCircle, FaCamera, FaTrash, FaEdit, FaSave, FaTimes } from "react-icons/fa";
 
 const Profile = () => {
-  const { user, token, logout, setUser } = useAuth();
+  const { user, token, logout, setUser, loading, updateProfileImage } = useAuth();
   const navigate = useNavigate();
   const fileInputRef = useRef(null);
 
   const [isEditing, setIsEditing] = useState(false);
-  const [userData, setUserData] = useState({ ...user });
-  const [profileImage, setProfileImage] = useState(user?.profileImage || null);
-  const [successMessage, setSuccessMessage] = useState('');
-  const [errorMessage, setErrorMessage] = useState('');
+  const [userData, setUserData] = useState(null);
+  const [profileImage, setProfileImage] = useState(null);
+  const [successMessage, setSuccessMessage] = useState("");
+  const [errorMessage, setErrorMessage] = useState("");
 
+  // If auth initialization finished and there's no user -> redirect to login
   useEffect(() => {
-    if (!user || !token) navigate('/login');
-  }, [user, token, navigate]);
+    if (!loading && !user) {
+      navigate("/login");
+    }
+  }, [loading, user, navigate]);
+
+  // Sync local form state when user becomes available
+  useEffect(() => {
+    setUserData(user ? { ...user } : null);
+    setProfileImage(user?.profileImage || null);
+  }, [user]);
 
   const handleInputChange = (e) => {
     const { name, value } = e.target;
@@ -25,13 +35,12 @@ const Profile = () => {
   };
 
   const handleImageUpload = (e) => {
-    const file = e.target.files[0];
-    if (file) {
-      if (!file.type.startsWith("image/")) return alert("Please upload an image");
-      const reader = new FileReader();
-      reader.onload = (e) => setProfileImage(e.target.result);
-      reader.readAsDataURL(file);
-    }
+    const file = e.target.files?.[0];
+    if (!file) return;
+    if (!file.type.startsWith("image/")) return alert("Please upload an image");
+    const reader = new FileReader();
+    reader.onload = (ev) => setProfileImage(ev.target.result);
+    reader.readAsDataURL(file);
   };
 
   const handleRemoveImage = () => {
@@ -44,7 +53,7 @@ const Profile = () => {
   const handleSave = async (e) => {
     e.preventDefault();
     try {
-      const res = await fetch("http://127.0.0.1:5000/auth/profile", {
+      const res = await fetch(`${import.meta.env.VITE_API_BASE_URL || "http://127.0.0.1:5000"}/auth/profile`, {
         method: "PUT",
         headers: {
           "Content-Type": "application/json",
@@ -52,9 +61,15 @@ const Profile = () => {
         },
         body: JSON.stringify({ ...userData, profileImage }),
       });
-      if (!res.ok) throw new Error("Failed to update profile");
+
+      if (!res.ok) {
+        const txt = await res.text();
+        throw new Error(txt || "Failed to update profile");
+      }
+
       const updatedUser = await res.json();
-      setUser(updatedUser); // update context
+      setUser(updatedUser); // update global user in context
+      updateProfileImage(profileImage); // Update profile image in context
       setSuccessMessage("Profile updated successfully!");
       setIsEditing(false);
       setTimeout(() => setSuccessMessage(""), 3000);
@@ -64,24 +79,17 @@ const Profile = () => {
     }
   };
 
-  if (!user) return null;
+  if (!userData) return null; // while loading
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-green-50 to-amber-50 py-8 px-4">
       <div className="max-w-4xl mx-auto">
-        <motion.div
-          initial={{ opacity: 0, y: 20 }}
-          animate={{ opacity: 1, y: 0 }}
-          transition={{ duration: 0.5 }}
-          className="bg-white rounded-xl shadow-lg overflow-hidden"
-        >
-          {/* Profile Header */}
+        <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.5 }} className="bg-white rounded-xl shadow-lg overflow-hidden">
           <div className="bg-gradient-to-r from-green-600 to-amber-500 text-white p-8 text-center relative">
             <div className="flex flex-col items-center justify-center mb-4">
               <div className="relative mb-4">
                 <div className="w-32 h-32 rounded-full bg-white bg-opacity-20 border-4 border-white overflow-hidden">
-                  {profileImage ? <img src={profileImage} alt="Profile" className="w-full h-full object-cover" />
-                    : <FaUserCircle className="text-6xl text-white w-full h-full" />}
+                  {profileImage ? <img src={profileImage} alt="Profile" className="w-full h-full object-cover" /> : <FaUserCircle className="text-6xl text-white w-full h-full" />}
                 </div>
 
                 {isEditing && (
