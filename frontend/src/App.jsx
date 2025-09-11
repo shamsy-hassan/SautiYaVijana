@@ -1,5 +1,5 @@
 // src/App.jsx
-import React, { useEffect } from 'react';
+import React from 'react';
 import { BrowserRouter as Router, Routes, Route, Navigate } from 'react-router-dom';
 import Navbar from './components/Navbar';
 import Footer from './components/Footer';
@@ -49,18 +49,6 @@ import FAQs            from './pages/contact/FAQs';
 const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || 'http://127.0.0.1:5000';
 
 function App() {
-  // Backend connection test
-  useEffect(() => {
-    if (import.meta.env.MODE === 'development') {
-      fetch(`${API_BASE_URL}/auth/test`)
-        .then(response => {
-          if (!response.ok) throw new Error('Network response was not ok');
-          console.log("✅ Backend connection successful!");
-        })
-        .catch(error => console.error('❌ Backend connection error:', error));
-    }
-  }, []);
-
   return (
     <AuthProvider>
       <motion.div
