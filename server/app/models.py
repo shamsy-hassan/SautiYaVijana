@@ -36,6 +36,12 @@ class Issue(db.Model):
     voters = db.Column(db.JSON, default=list)
     
     def to_dict(self):
+        # Handle user name for both authenticated and anonymous users
+        if self.user:
+            user_name = self.user.anonymous_name or f"{self.user.first_name} {self.user.last_name}".strip() or "Anonymous User"
+        else:
+            user_name = "Anonymous User"
+            
         return {
             'id': self.id,
             'village': self.village,
@@ -47,7 +53,8 @@ class Issue(db.Model):
             'created_at': self.created_at.isoformat(),
             'updated_at': self.updated_at.isoformat(),
             'user_id': self.user_id,
-            'voters': self.voters,
+            'userName': user_name,
+            'voters': self.voters or [],
             'comments': [comment.to_dict() for comment in self.comments]
         }
 
@@ -70,14 +77,20 @@ class Comment(db.Model):
     reactions = db.Column(db.JSON, default=list)
     
     def to_dict(self):
+        # Handle user name for both authenticated and anonymous users
+        if self.user:
+            user_name = self.user.anonymous_name or f"{self.user.first_name} {self.user.last_name}".strip() or "Anonymous User"
+        else:
+            user_name = "Anonymous User"
+            
         return {
             'id': self.id,
             'text': self.text,
             'timestamp': self.timestamp.isoformat(),
             'user_id': self.user_id,
-            'userName': self.user.anonymous_name if self.user else 'Anonymous',
+            'userName': user_name,
             'issue_id': self.issue_id,
             'parent_id': self.parent_id,
-            'reactions': self.reactions,
+            'reactions': self.reactions or [],
             'replies': [reply.to_dict() for reply in self.replies]
         }

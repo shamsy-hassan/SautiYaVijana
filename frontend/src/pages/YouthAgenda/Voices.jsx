@@ -1,6 +1,5 @@
-// src/components/Voices.jsx
 import React, { useState, useEffect } from 'react';
-import { FaThumbsUp, FaRegThumbsUp, FaTrash, FaEdit, FaUser, FaSignInAlt, FaSignOutAlt, FaComment, FaRegComment, FaCheck, FaTimes, FaReply, FaSmile } from 'react-icons/fa';
+import { FaThumbsUp, FaRegThumbsUp, FaTrash, FaEdit, FaUser, FaSignOutAlt, FaComment, FaRegComment, FaCheck, FaTimes, FaReply, FaSmile } from 'react-icons/fa';
 import { motion } from 'framer-motion';
 import EmojiPicker from "emoji-picker-react";
 
@@ -25,34 +24,57 @@ const Voices = () => {
     suggestion: '',
   });
 
-  // Authentication state
   const [currentUser, setCurrentUser] = useState(null);
-
-  // Comment state
   const [activeCommentId, setActiveCommentId] = useState(null);
   const [commentText, setCommentText] = useState('');
   const [replyingTo, setReplyingTo] = useState(null);
   const [showEmojiPicker, setShowEmojiPicker] = useState(null);
 
-  // API call functions
+  // Centralized voter ID management
+  const getVoterId = () => {
+    let voterId = localStorage.getItem('voterId');
+    if (!voterId) {
+      // Create a more robust voter ID with timestamp and random components
+      const timestamp = Date.now();
+      const randomStr = Math.random().toString(36).substr(2, 9);
+      const sessionStr = Math.random().toString(36).substr(2, 5);
+      voterId = `voter-${timestamp}-${randomStr}-${sessionStr}`;
+      localStorage.setItem('voterId', voterId);
+      console.log('Generated new voter ID:', voterId);
+    }
+    return voterId;
+  };
+
   const createIssue = async (issueData) => {
     try {
       const token = localStorage.getItem('authToken');
+      console.log('Creating issue with data:', issueData);
       const response = await fetch(API_ENDPOINTS.ISSUES, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
-          'Authorization': `Bearer ${token}`
+          ...(token && { 'Authorization': `Bearer ${token}` })
         },
-        body: JSON.stringify(issueData)
+        body: JSON.stringify({
+          ...issueData,
+          userId: currentUser?.id || null,
+          userName: currentUser?.displayName || 'Anonymous User'
+        })
       });
       
       if (response.ok) {
-        return await response.json();
+        const newIssue = await response.json();
+        console.log('Issue created successfully:', newIssue);
+        return newIssue;
+      } else {
+        const errorData = await response.json();
+        console.error('Error creating issue:', errorData);
+        alert(`Failed to create issue: ${errorData.error || 'Unknown error'}`);
+        return null;
       }
-      return null;
     } catch (error) {
       console.error('Error creating issue:', error);
+      alert('Failed to create issue. Please check your connection and try again.');
       return null;
     }
   };
@@ -145,15 +167,21 @@ const Voices = () => {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
-          'Authorization': `Bearer ${token}`
+          ...(token && { 'Authorization': `Bearer ${token}` })
         },
-        body: JSON.stringify(commentData)
+        body: JSON.stringify({
+          ...commentData,
+          userId: currentUser?.id || null
+        })
       });
       
       if (response.ok) {
         return await response.json();
+      } else {
+        const errorData = await response.json();
+        console.error('Error adding comment:', errorData);
+        return null;
       }
-      return null;
     } catch (error) {
       console.error('Error adding comment:', error);
       return null;
@@ -167,9 +195,12 @@ const Voices = () => {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
-          'Authorization': `Bearer ${token}`
+          ...(token && { 'Authorization': `Bearer ${token}` })
         },
-        body: JSON.stringify(replyData)
+        body: JSON.stringify({
+          ...replyData,
+          userId: currentUser?.id || null
+        })
       });
       
       if (response.ok) {
@@ -189,7 +220,7 @@ const Voices = () => {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
-          'Authorization': `Bearer ${token}`
+          ...(token && { 'Authorization': `Bearer ${token}` })
         },
         body: JSON.stringify({ emoji })
       });
@@ -197,7 +228,6 @@ const Voices = () => {
       if (response.ok) {
         const updatedComment = await response.json();
         
-        // Update the comment with the new reaction
         setIssues(prevIssues => {
           const updateComments = (comments) => {
             return comments.map(comment => {
@@ -220,36 +250,66 @@ const Voices = () => {
             };
           });
         });
+      } else {
+        const errorData = await response.json();
+        alert(`Failed to add reaction: ${errorData.error || 'Please make sure you are logged in'}`);
       }
     } catch (error) {
       console.error('Error adding reaction:', error);
+      alert('Failed to add reaction. Please check your connection and try again.');
     }
   };
 
-  // Load user and issues from API on initial render
   useEffect(() => {
     const fetchData = async () => {
       try {
-        // Check if user is logged in
         const token = localStorage.getItem('authToken');
-        if (token) {
-          const userResponse = await fetch(`${API_ENDPOINTS.USERS}/me`, {
-            headers: {
-              'Authorization': `Bearer ${token}`
-            }
-          });
-          
-          if (userResponse.ok) {
-            const userData = await userResponse.json();
+        const savedUser = localStorage.getItem('sautiUser');
+        
+        if (savedUser) {
+          try {
+            const userData = JSON.parse(savedUser);
+            console.log('Loading saved user:', userData);
             setCurrentUser(userData);
+          } catch (error) {
+            console.error('Error parsing saved user data:', error);
+            localStorage.removeItem('sautiUser');
+          }
+        }
+        
+        if (token) {
+          try {
+            const userResponse = await fetch(`${API_ENDPOINTS.USERS}/me`, {
+              headers: {
+                'Authorization': `Bearer ${token}`
+              }
+            });
+            
+            if (userResponse.ok) {
+              const userData = await userResponse.json();
+              console.log('Fetched fresh user data:', userData);
+              setCurrentUser(userData);
+              localStorage.setItem('sautiUser', JSON.stringify(userData));
+            } else if (userResponse.status === 401) {
+              console.log('Token expired, clearing auth data');
+              localStorage.removeItem('authToken');
+              localStorage.removeItem('sautiUser');
+              setCurrentUser(null);
+            }
+          } catch (error) {
+            console.error('Error fetching user data:', error);
+            console.log('API call failed, keeping saved user data');
           }
         }
 
-        // Fetch issues
-        const issuesResponse = await fetch(API_ENDPOINTS.ISSUES);
-        if (issuesResponse.ok) {
-          const issuesData = await issuesResponse.json();
-          setIssues(issuesData);
+        try {
+          const issuesResponse = await fetch(API_ENDPOINTS.ISSUES);
+          if (issuesResponse.ok) {
+            const issuesData = await issuesResponse.json();
+            setIssues(issuesData);
+          }
+        } catch (error) {
+          console.error('Error fetching issues:', error);
         }
       } catch (error) {
         console.error('Error fetching data:', error);
@@ -265,7 +325,6 @@ const Voices = () => {
     setCurrentUser(null);
   };
 
-  // Delete issue handler
   const handleDeleteClick = async (id) => {
     if (window.confirm('Are you sure you want to delete this issue?')) {
       const success = await deleteIssue(id);
@@ -278,7 +337,6 @@ const Voices = () => {
     }
   };
 
-  // Comment handlers
   const toggleComments = (id) => {
     setActiveCommentId(activeCommentId === id ? null : id);
     setCommentText('');
@@ -305,7 +363,6 @@ const Voices = () => {
         issues.map(issue => {
           if (issue.id === issueId) {
             if (replyingTo) {
-              // Add as a reply to an existing comment
               const updateComments = (comments) => {
                 return comments.map(comment => {
                   if (comment.id === replyingTo) {
@@ -328,7 +385,6 @@ const Voices = () => {
                 comments: updateComments(issue.comments)
               };
             } else {
-              // Add as a top-level comment
               return {
                 ...issue,
                 comments: [...(issue.comments || []), newComment]
@@ -342,7 +398,7 @@ const Voices = () => {
       setCommentText('');
       setReplyingTo(null);
     } else {
-      alert('Failed to add comment');
+      alert('Failed to add comment.');
     }
   };
 
@@ -355,7 +411,6 @@ const Voices = () => {
     setShowEmojiPicker(showEmojiPicker === commentId ? null : commentId);
   };
 
-  // Original handlers
   const handleChange = (e) => {
     const { name, value } = e.target;
     setFormData({ ...formData, [name]: value });
@@ -365,7 +420,6 @@ const Voices = () => {
     e.preventDefault();
     
     if (editingId) {
-      // Update existing issue
       const updatedIssue = await updateIssue(editingId, formData);
       
       if (updatedIssue) {
@@ -379,7 +433,6 @@ const Voices = () => {
         alert('Failed to update issue');
       }
     } else {
-      // Create new issue
       const newIssue = await createIssue({
         ...formData,
         userId: currentUser?.id || null
@@ -388,7 +441,7 @@ const Voices = () => {
       if (newIssue) {
         setIssues([newIssue, ...issues]);
       } else {
-        alert('Failed to create issue');
+        alert('Failed to create issue.');
       }
     }
     
@@ -397,18 +450,31 @@ const Voices = () => {
   };
 
   const handleUpvote = async (id) => {
-    // Generate a unique voter ID for anonymous tracking
-    const voterId = localStorage.getItem('voterId') || `voter-${Date.now()}`;
-    localStorage.setItem('voterId', voterId);
+    const voterId = getVoterId();
     
-    const updatedIssue = await upvoteIssue(id, voterId);
-    
-    if (updatedIssue) {
-      setIssues(
-        issues.map((issue) => 
-          issue.id === id ? updatedIssue : issue
-        )
-      );
+    try {
+      const updatedIssue = await upvoteIssue(id, voterId);
+      
+      if (updatedIssue) {
+        setIssues(
+          issues.map((issue) => 
+            issue.id === id ? updatedIssue : issue
+          )
+        );
+        
+        // Provide user feedback
+        const hasVoted = updatedIssue.voters?.includes(voterId);
+        if (hasVoted) {
+          console.log('Vote added successfully!');
+        } else {
+          console.log('Vote removed successfully!');
+        }
+      } else {
+        alert('Failed to register vote. Please try again.');
+      }
+    } catch (error) {
+      console.error('Error voting:', error);
+      alert('Failed to vote. Please check your connection and try again.');
     }
   };
 
@@ -445,7 +511,6 @@ const Voices = () => {
     setShowEmojiPicker(null);
   };
 
-  // Recursive component for rendering nested comments
   const CommentItem = ({ comment, depth = 0 }) => {
     const hasReplies = comment.replies && comment.replies.length > 0;
     
@@ -486,9 +551,14 @@ const Voices = () => {
         {comment.reactions && comment.reactions.length > 0 && (
           <div className="mt-2 flex flex-wrap gap-1">
             {comment.reactions.map((reaction, idx) => (
-              <span key={idx} className="text-sm">
-                {reaction.emoji} {reaction.count > 1 ? reaction.count : ''}
-              </span>
+              <button 
+                key={idx} 
+                className="text-sm bg-gray-100 hover:bg-gray-200 px-2 py-1 rounded-full transition-colors cursor-pointer border border-gray-200 hover:border-gray-300"
+                title={`React with ${reaction.emoji}`}
+                onClick={() => addEmojiReaction(comment.id, reaction.emoji)}
+              >
+                {reaction.emoji} {reaction.count > 1 && <span className="ml-1 text-xs text-gray-600">{reaction.count}</span>}
+              </button>
             ))}
           </div>
         )}
@@ -557,7 +627,7 @@ const Voices = () => {
           </div>
 
           <div className="flex items-center gap-4">
-            {currentUser ? (
+            {currentUser && (
               <div className="flex items-center gap-2 bg-indigo-100 px-4 py-2 rounded-full">
                 <FaUser className="text-indigo-700" />
                 <span className="font-medium text-indigo-900">{currentUser.displayName}</span>
@@ -569,7 +639,7 @@ const Voices = () => {
                   <FaSignOutAlt />
                 </button>
               </div>
-            ) : null}
+            )}
 
             <button 
               onClick={() => setShowForm(true)} 
@@ -581,7 +651,6 @@ const Voices = () => {
           </div>
         </div>
 
-        {/* Submission Form */}
         {showForm && (
           <motion.div 
             initial={{ opacity: 0, scale: 0.95 }} 
@@ -661,7 +730,7 @@ const Voices = () => {
                   type="submit" 
                   className="bg-indigo-600 text-white px-5 py-2.5 rounded-lg hover:bg-indigo-700 transition flex items-center gap-2"
                 >
-                  <span>📤</span>
+                  <span>��</span>
                   {editingId ? "Update Issue" : "Submit Concern"}
                 </button>
               </div>
@@ -669,7 +738,6 @@ const Voices = () => {
           </motion.div>
         )}
 
-        {/* Stats Summary */}
         <div className="grid grid-cols-1 md:grid-cols-4 gap-5 mb-8">
           <div className="bg-white p-5 rounded-xl shadow-md border-l-4 border-indigo-500">
             <h3 className="text-gray-600 text-sm font-medium">Total Issues</h3>
@@ -705,7 +773,6 @@ const Voices = () => {
           </div>
         </div>
 
-        {/* Issues Table */}
         <motion.div 
           initial={{ opacity: 0 }} 
           animate={{ opacity: 1 }} 
@@ -748,7 +815,12 @@ const Voices = () => {
                     <React.Fragment key={issue.id}>
                       <tr className="hover:bg-indigo-50 transition-colors">
                         <td className="px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-900">
-                          #{issue.id.toString().slice(-4)}
+                          <div className="flex items-center gap-2">
+                            #{issue.id.toString().slice(-4)}
+                            {currentUser && currentUser.id === issue.user_id && (
+                              <span className="bg-indigo-100 text-indigo-800 text-xs px-2 py-1 rounded-full">Your Issue</span>
+                            )}
+                          </div>
                         </td>
                         <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-700">
                           <span className="font-medium">{issue.village}</span>
@@ -758,6 +830,9 @@ const Voices = () => {
                         </td>
                         <td className="px-6 py-4 text-sm text-gray-700 max-w-xs">
                           <div className="font-medium">{issue.issue}</div>
+                          {issue.userName && (
+                            <div className="text-xs text-gray-500 mt-1">By: {issue.userName}</div>
+                          )}
                         </td>
                         <td className="px-6 py-4 text-sm text-gray-700 max-w-xs">
                           {issue.suggestion || (
@@ -767,18 +842,28 @@ const Voices = () => {
                         <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-700">
                           <button 
                             onClick={() => handleUpvote(issue.id)} 
-                            className={`flex items-center gap-2 px-3 py-1.5 rounded-full ${
-                              issue.voters?.includes(localStorage.getItem('voterId')) 
-                                ? 'bg-indigo-100 text-indigo-700' 
-                                : 'bg-gray-100 text-gray-700 hover:bg-indigo-100 hover:text-indigo-700'
+                            className={`flex items-center gap-2 px-3 py-1.5 rounded-full transition-all duration-200 ${
+                              issue.voters?.includes(getVoterId()) 
+                                ? 'bg-indigo-100 text-indigo-700 border-2 border-indigo-300' 
+                                : 'bg-gray-100 text-gray-700 hover:bg-indigo-100 hover:text-indigo-700 border-2 border-transparent'
                             }`} 
-                            aria-label="Upvote this issue"
+                            title={issue.voters?.includes(getVoterId()) 
+                              ? 'Click to remove your vote' 
+                              : 'Click to upvote this issue'
+                            }
+                            aria-label={issue.voters?.includes(getVoterId()) 
+                              ? 'Remove upvote from this issue' 
+                              : 'Upvote this issue'
+                            }
                           >
-                            {issue.voters?.includes(localStorage.getItem('voterId')) 
+                            {issue.voters?.includes(getVoterId()) 
                               ? <FaThumbsUp className="text-indigo-600" /> 
                               : <FaRegThumbsUp />
                             }
                             <span className="font-medium">{issue.upvotes || 0}</span>
+                            {issue.voters?.includes(getVoterId()) && (
+                              <span className="text-xs text-indigo-600">✓</span>
+                            )}
                           </button>
                         </td>
                         <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-700">
@@ -799,32 +884,40 @@ const Voices = () => {
                         </td>
                         <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-700">
                           <div className="flex justify-center gap-3">
-                            {issue.resolved ? null : (
+                            {issue.resolved ? (
+                              <span className="text-green-600 text-sm font-medium">✓ Resolved</span>
+                            ) : (
                               <>
-                                {currentUser && (currentUser.id === issue.userId || !issue.userId) && (
+                                {/* Show edit/delete for user's own issues or all for anonymous */}
+                                {(currentUser && currentUser.id === issue.user_id) || !issue.user_id ? (
                                   <>
                                     <button 
                                       onClick={() => handleEdit(issue)} 
-                                      className="text-indigo-600 hover:text-indigo-900" 
-                                      title="Edit issue"
+                                      className="text-indigo-600 hover:text-indigo-900 p-1 rounded transition-colors" 
+                                      title="Edit your issue"
                                     >
                                       <FaEdit />
                                     </button>
                                     <button 
                                       onClick={() => handleDeleteClick(issue.id)} 
-                                      className="text-red-600 hover:text-red-900" 
-                                      title="Delete issue"
+                                      className="text-red-600 hover:text-red-900 p-1 rounded transition-colors" 
+                                      title="Delete your issue"
                                     >
                                       <FaTrash />
                                     </button>
                                   </>
+                                ) : null}
+
+                                {currentUser && currentUser.id !== issue.user_id && issue.user_id && (
+                                  <span className="text-gray-400 text-xs">Owner only</span>
                                 )}
                               </>
                             )}
-                            {currentUser && (currentUser.id === issue.userId || !issue.userId) && (
+                            {/* Show resolved toggle for user's own issues or all for anonymous */}
+                            {(currentUser && currentUser.id === issue.user_id) || !issue.user_id ? (
                               <button 
                                 onClick={() => toggleResolved(issue.id)} 
-                                className={`${
+                                className={`p-1 rounded transition-colors ${
                                   issue.resolved 
                                     ? 'text-yellow-600 hover:text-yellow-800' 
                                     : 'text-green-600 hover:text-green-800'
@@ -833,12 +926,11 @@ const Voices = () => {
                               >
                                 {issue.resolved ? <FaTimes /> : <FaCheck />}
                               </button>
-                            )}
+                            ) : null}
                           </div>
                         </td>
                       </tr>
 
-                      {/* Comment Section */}
                       {activeCommentId === issue.id && (
                         <tr>
                           <td colSpan="8" className="bg-gray-50 p-4">
@@ -912,7 +1004,6 @@ const Voices = () => {
           </div>
         </motion.div>
 
-        {/* Info Footer */}
         <div className="mt-8 text-center text-gray-600 text-sm">
           <p>All issues are stored securely on our servers. Your data is protected and accessible across devices.</p>
         </div>
