@@ -88,6 +88,7 @@ def delete_issue(issue_id):
         return jsonify({'error': str(e)}), 500
 
 @issues_bp.route('/<int:issue_id>/upvote', methods=['POST'])
+@jwt_required()  
 def upvote_issue(issue_id):
     try:
         issue = Issue.query.get_or_404(issue_id)

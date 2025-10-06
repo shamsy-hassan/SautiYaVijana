@@ -35,6 +35,7 @@ class Issue(db.Model):
     # For anonymous voting tracking
     voters = db.Column(db.JSON, default=list)
     
+    
     def to_dict(self):
         # Handle user name for both authenticated and anonymous users
         if self.user:
@@ -93,4 +94,23 @@ class Comment(db.Model):
             'parent_id': self.parent_id,
             'reactions': self.reactions or [],
             'replies': [reply.to_dict() for reply in self.replies]
+        }
+# Add this to your models.py
+class UserVote(db.Model):
+    __tablename__ = 'user_votes'
+    
+    id = db.Column(db.Integer, primary_key=True)
+    user_id = db.Column(db.Integer, db.ForeignKey('users.id'), nullable=False)
+    issue_id = db.Column(db.Integer, db.ForeignKey('issues.id'), nullable=False)
+    created_at = db.Column(db.DateTime, default=db.func.now())
+    
+    # Unique constraint to ensure one vote per user per issue
+    __table_args__ = (db.UniqueConstraint('user_id', 'issue_id', name='unique_user_vote'),)
+    
+    def to_dict(self):
+        return {
+            'id': self.id,
+            'user_id': self.user_id,
+            'issue_id': self.issue_id,
+            'created_at': self.created_at.isoformat() if self.created_at else None
         }
